@@ -1,0 +1,26 @@
+# 个人数据（不要提交）
+data.json
+data.json.tmp
+backups/
+
+# 编译产物
+*.app
+app/icon_1024.png
+
+# 图标草稿
+app/icon_options/
+app/icon_concepts/
+app/icon_color/
+app/icon_moon/
+app/icon_moonrise/
+app/icon_mono/
+app/icon_variants.swift
+app/icon_concepts.swift
+app/icon_moon.swift
+app/icon_moonrise.swift
+app/icon_mono.swift
+
+# 系统文件
+.DS_Store
+__pycache__/
+*.log

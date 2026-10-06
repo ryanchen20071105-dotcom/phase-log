@@ -1,0 +1,1306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阶段日志</title>
+<style>
+:root{
+  --bg:#f2f2f7; --text:#1d1d1f; --sub:#6e6e73; --faint:#86868b;
+  --line:#d2d2d7; --fill:rgba(0,0,0,.06); --link:#1d1d1f; --input:rgba(118,118,128,.1);
+  --danger:#ff3b30; --ok:#28a745; --nav:rgba(250,250,252,.55); --shadow:0 10px 40px rgba(0,0,0,.10);
+  /* 玻璃 */
+  --card:#ffffff; --glass:rgba(255,255,255,.55); --glass-strong:rgba(255,255,255,.72);
+  --sheet:rgba(250,250,252,.82); --glass-border:rgba(255,255,255,.75);
+  --glass-hi:inset 0 1px 1px rgba(255,255,255,1), inset 0 -1px 1px rgba(0,0,0,.05);
+  --glass-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.08); --glass-edge:rgba(0,0,0,.08); --focus:rgba(0,0,0,.16);
+  --panel:#fbfbfd;
+  --btn:rgba(120,120,128,.12); --btn-hover:rgba(120,120,128,.18); --btn-active:rgba(120,120,128,.26);
+  --blur:blur(28px) saturate(180%);
+  --glow1:rgba(255,190,90,.30); --glow2:rgba(255,95,130,.20); --glow3:rgba(80,210,140,.22); --glow4:rgba(190,120,240,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0b0b0d; --text:#f5f5f7; --sub:#a1a1a6; --faint:#8e8e93;
+    --line:#38383a; --fill:rgba(255,255,255,.08); --link:#f5f5f7; --input:rgba(118,118,128,.24);
+    --danger:#ff453a; --ok:#30d158; --nav:rgba(22,22,24,.5); --shadow:0 10px 40px rgba(0,0,0,.5);
+    --card:#1c1c1e; --glass:rgba(80,80,86,.45); --glass-strong:rgba(100,100,106,.5); --glass-edge:rgba(255,255,255,.14);
+    --sheet:rgba(36,36,40,.85); --glass-border:rgba(255,255,255,.13);
+    --glass-hi:inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.2);
+    --glass-shadow:0 2px 14px rgba(0,0,0,.3); --focus:rgba(255,255,255,.22);
+    --panel:#1f1f22;
+    --btn:rgba(120,120,128,.24); --btn-hover:rgba(120,120,128,.32); --btn-active:rgba(120,120,128,.42);
+    --glow1:rgba(255,160,60,.14); --glow2:rgba(255,70,110,.12); --glow3:rgba(50,190,120,.12); --glow4:rgba(160,90,230,.14);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--text);min-height:100vh;
+  background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","PingFang SC","Helvetica Neue",sans-serif;
+  font-size:17px;line-height:1.47;letter-spacing:-.022em;-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+button,input,textarea,select{font:inherit;color:inherit;letter-spacing:inherit}
+
+/* 导航栏 */
+.nav{position:sticky;top:0;z-index:20;height:52px;background:var(--nav);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.nav-in{max-width:1024px;margin:0 auto;height:100%;padding:0 22px;display:flex;align-items:center;gap:28px}
+.brand{font-weight:600;font-size:19px;color:var(--text)}
+.brand:hover{text-decoration:none}
+.tabs{display:flex;gap:22px;font-size:14px}
+.tabs a{color:var(--sub)}
+.tabs a.on{color:var(--text);font-weight:500}
+.tabs a:hover{color:var(--text);text-decoration:none}
+.nav .sp{flex:1}
+.save{font-size:12px;color:var(--faint);min-width:56px;text-align:right}
+.save.err{color:var(--danger)}
+
+.wrap{max-width:1024px;margin:0 auto;padding:0 22px 96px}
+
+/* 按钮 */
+/* 按钮：苹果哑光灰——平的填充，没有光泽、渐变和描边 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:980px;padding:8px 18px;
+  font-size:15px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--text);background:var(--btn);
+  transition:background .15s ease,transform .12s ease}
+.btn:hover{background:var(--btn-hover)}
+.btn:active{background:var(--btn-active);transform:scale(.96)}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--focus)}
+.btn.sm{padding:5px 14px;font-size:13px}
+.btn.xs{padding:3px 11px;font-size:12px}
+a.btn:hover{text-decoration:none}
+.vt-title{display:inline-block}
+.dhead .open{margin-left:auto;font-weight:500}
+
+/* 页面切换（View Transitions）：旧页面淡出，新页面淡入上移；领域名从原位置飞到大标题；侧栏向右滑走 */
+.nav{view-transition-name:nav}
+/* 日历页的顶栏是通栏、其他页居中：让标题、标签、按钮各自滑到新位置，而不是叠在一起淡入淡出 */
+.brand{view-transition-name:nav-brand}
+.tabs{view-transition-name:nav-tabs}
+#save{view-transition-name:nav-save}
+.nav-in > .btn{view-transition-name:nav-new}
+.drawer{view-transition-name:drawer}
+::view-transition-group(*){animation-duration:.45s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+::view-transition-old(root){animation:.26s cubic-bezier(.4,0,1,1) both vt-out}
+::view-transition-new(root){animation:.42s cubic-bezier(.2,.8,.2,1) .04s both vt-in}
+::view-transition-old(drawer){animation:.3s cubic-bezier(.4,0,1,1) both vt-side-out}
+::view-transition-new(drawer){animation:.42s cubic-bezier(.2,.8,.2,1) both vt-side-in}
+@keyframes vt-out{to{opacity:0;transform:scale(.99)}}
+@keyframes vt-in{from{opacity:0;transform:translateY(12px)}}
+@keyframes vt-side-out{to{opacity:0;transform:translateX(48px)}}
+@keyframes vt-side-in{from{opacity:0;transform:translateX(48px)}}
+html[data-vt] *{-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important}
+}
+.btn.danger{color:var(--danger)}
+.btn.icon{width:34px;height:34px;padding:0;font-size:17px}
+.dlg-foot .btn[value=ok]{font-weight:600}
+.lnk{background:none;border:0;padding:0;color:var(--sub);cursor:pointer;font-size:inherit;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
+.lnk:hover{color:var(--text)}
+.lnk:hover{text-decoration:underline}
+.lnk.danger{color:var(--danger)}
+
+/* 标题区 */
+.hero{padding:64px 0 36px}
+.eyebrow{font-size:21px;font-weight:600;color:var(--c,var(--sub));margin:0 0 6px}
+.hero h1{font-size:56px;line-height:1.07;font-weight:700;letter-spacing:-.005em;margin:0}
+.hero .lead{font-size:21px;color:var(--sub);margin:12px 0 0;line-height:1.38}
+.hero-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.back{display:inline-block;font-size:14px;margin-bottom:22px}
+
+.sec-title{font-size:28px;font-weight:700;margin:56px 0 18px;letter-spacing:.004em}
+
+/* 卡片 */
+.card{background:var(--card);border-radius:18px;padding:28px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+
+/* 总览：左边领域卡片，右边待办 */
+body.home .wrap{max-width:1240px}
+.home-cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+.home-cols > .grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+/* 待办（参考滴答清单） */
+.todo{position:sticky;top:72px;padding:24px 22px}
+.todo-h{display:flex;align-items:baseline;gap:8px;margin-bottom:14px}
+.todo-h h2{margin:0;font-size:21px;font-weight:700}
+.todo-h .n{font-size:13px;color:var(--faint)}
+.todo-add{position:relative}
+.todo-add input[type=text]{width:100%;padding-right:46px}
+.todo-cal{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:9px;
+  background:none;color:var(--faint);cursor:pointer;display:grid;place-items:center}
+.todo-cal:hover{background:var(--fill);color:var(--text)}
+.todo-cal.on{color:var(--text)}
+.sr-date{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+.todo-chip{display:none;align-items:center;gap:4px;margin-top:8px;font-size:12px;color:var(--text);background:var(--fill);
+  border-radius:980px;padding:3px 6px 3px 10px;width:max-content;max-width:100%}
+.todo-chip.show{display:inline-flex}
+.todo-chip button{border:0;background:none;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;padding:0 3px}
+.todo-chip button:hover{color:var(--text)}
+.todo-list{list-style:none;padding:0;margin:10px 0 0}
+.todo-item{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--fill);transition:opacity .3s}
+.todo-item:last-child{border-bottom:0}
+.todo-item .ck{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:1.5px solid var(--faint);border-radius:50%;
+  margin:0;flex:none;cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s}
+.todo-item .ck:hover{border-color:var(--text)}
+.todo-item .ck:checked{background:var(--text);border-color:var(--text)}
+.todo-item .ck:checked::after{content:"";width:4px;height:8px;border:solid var(--card);border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.todo-item .tt{flex:1;min-width:0;border:0;background:transparent;padding:4px 0;font-size:15px;border-radius:6px}
+.todo-item .tt:focus{box-shadow:none;background:var(--input);padding:4px 8px}
+.todo-item.done .tt{color:var(--faint);text-decoration:line-through}
+.todo-item.leaving{opacity:.3}
+.todo-due{border:0;background:none;padding:2px 6px;border-radius:6px;font-size:12px;color:var(--sub);cursor:pointer;white-space:nowrap;flex:none}
+button.todo-due:hover{background:var(--fill);color:var(--text)}
+.todo-due.over{color:var(--danger)}
+.todo-due.add{opacity:0}
+.todo-item:hover .todo-due.add{opacity:1}
+.due-edit{display:flex;align-items:center;gap:6px;flex:none}
+.due-edit input{padding:4px 8px;font-size:12px;border-radius:8px}
+.due-edit .lnk{font-size:12px}
+.todo-empty{font-size:14px;color:var(--faint);margin:14px 0 2px}
+@media (max-width:1000px){
+  .home-cols{grid-template-columns:minmax(0,1fr)}
+  .todo{position:static}
+}
+.dcard{display:block;color:var(--text);transition:transform .25s ease,box-shadow .25s ease;min-height:230px}
+.dcard:hover{text-decoration:none;transform:scale(1.015);box-shadow:var(--shadow)}
+.dhead{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--c)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.dstatus{margin-left:auto;font-weight:400;font-size:12px;color:var(--faint)}
+.dstatus.done{color:var(--ok)}
+.dcard h3{font-size:28px;line-height:1.14;margin:14px 0 6px;font-weight:700}
+.dcard h3.none{color:var(--faint);font-weight:600;font-size:22px}
+.meta{font-size:14px;color:var(--sub);margin:0}
+.mini-goals{list-style:none;padding:0;margin:18px 0 0;font-size:15px}
+.mini-goals li{display:flex;gap:8px;padding:3px 0}
+.mini-goals li::before{content:"";width:13px;height:13px;border:1.5px solid var(--faint);border-radius:50%;flex:none;margin-top:5px}
+.mini-goals .more{color:var(--faint);font-size:13px}
+.mini-goals .more::before{display:none}
+.last{font-size:14px;color:var(--sub);margin:16px 0 0;border-top:1px solid var(--fill);padding-top:12px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.add-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  border:2px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer;min-height:230px;border-radius:18px;font-size:17px}
+.add-card:hover{border-color:var(--sub);color:var(--text);background:var(--glass)}
+.add-card .plus{font-size:40px;font-weight:200;line-height:1}
+
+.empty{text-align:center;padding:96px 0}
+.empty h1{font-size:48px;margin:0 0 12px}
+.empty p{font-size:21px;color:var(--sub);margin:0 0 28px}
+
+/* 领域页 */
+.phase-hero{position:relative;overflow:hidden}
+.phase-hero::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--c)}
+.ph-label{font-size:14px;font-weight:600;color:var(--c);margin:0}
+.ph-name{font-size:40px;font-weight:700;line-height:1.1;margin:6px 0 8px}
+.ph-day{font-size:17px;color:var(--sub);margin:0}
+.ph-day b{color:var(--text);font-weight:600}
+.ph-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+
+.cols{display:grid;grid-template-columns:1fr;gap:20px;margin-top:20px}
+@media (min-width:860px){.cols{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}}
+.card h2{font-size:21px;font-weight:700;margin:0 0 4px}
+.card .hint{font-size:13px;color:var(--faint);margin:0 0 16px}
+
+.editor-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.editor-top h2{margin:0;margin-right:auto}
+input[type=date],input[type=text],input[type=month],textarea,select{
+  background:var(--input);border:1px solid transparent;border-radius:12px;padding:10px 14px;outline:none;font-size:15px}
+input:focus,textarea:focus,select:focus{border-color:var(--focus);box-shadow:0 0 0 4px var(--fill)}
+textarea{width:100%;resize:vertical;min-height:150px;line-height:1.55}
+.editor-foot{display:flex;justify-content:space-between;font-size:12px;color:var(--faint);margin-top:8px}
+
+.goals{list-style:none;padding:0;margin:0}
+.goal{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--fill)}
+.goal input[type=checkbox]{appearance:none;-webkit-appearance:none;width:20px;height:20px;border:1.5px solid var(--faint);
+  border-radius:50%;margin:0;flex:none;cursor:pointer;display:grid;place-items:center}
+.goal input[type=checkbox]:checked{background:var(--c,var(--text));border-color:var(--c,var(--text))}
+.goal input[type=checkbox]:checked::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.goal .gt{flex:1;background:transparent;border:0;padding:4px 0;font-size:15px;border-radius:6px;min-width:0}
+.goal .gt:focus{box-shadow:none;background:var(--input);padding:4px 8px}
+.goal.done .gt{color:var(--faint);text-decoration:line-through}
+.x{opacity:.4;border:0;background:none;color:var(--faint);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;flex:none;transition:opacity .15s,color .15s}
+li:hover > .x{opacity:1}
+.x:hover{color:var(--danger)}
+.goal-add{display:flex;gap:8px;margin-top:12px}
+.side{display:flex;flex-direction:column;gap:20px;align-self:start}
+.opt{font-size:12px;font-weight:500;color:var(--faint);background:var(--input);border-radius:980px;padding:2px 8px;vertical-align:middle;margin-left:4px}
+.mini-goals .lbl{font-size:12px;font-weight:600;color:var(--faint);padding:8px 0 1px}
+.mini-goals .lbl::before{display:none}
+.mini-goals .lbl:first-child{padding-top:0}
+.reflect textarea{min-height:130px}
+.rdate{font-size:13px;color:var(--faint)}
+.past{margin-top:22px;border-top:1px solid var(--fill)}
+.past-item{padding:18px 0;border-bottom:1px solid var(--fill)}
+.past-item:last-child{border-bottom:0}
+.past-item p{margin:0;white-space:pre-wrap;font-size:15px}
+.goal-add input{flex:1;min-width:0}
+.done-head{font-size:12px;color:var(--faint);margin:16px 0 2px;cursor:pointer;user-select:none}
+
+.entries{display:flex;flex-direction:column;gap:0}
+.entry{padding:18px 0;border-top:1px solid var(--fill)}
+.entry:first-child{border-top:0;padding-top:4px}
+.entry-h{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.entry-h .d{font-weight:600;font-size:15px}
+.entry-h .n{font-size:13px;color:var(--faint)}
+.entry-h .lnk{margin-left:auto;font-size:13px}
+.entry-h .acts{margin-left:auto;display:flex;gap:14px;font-size:13px}
+.entry-h .acts .lnk{margin-left:0}
+.lnk.del:hover{color:var(--danger)}
+.entry p{margin:0;white-space:pre-wrap;font-size:15px;color:var(--text)}
+.muted{color:var(--faint);font-size:15px}
+
+/* 时间线 */
+.tl{display:flex;height:34px;border-radius:10px;overflow:hidden;background:var(--input);margin:8px 0 6px}
+.tl > div{height:100%;display:flex;align-items:center;padding:0 8px;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;border-right:2px solid rgba(255,255,255,.55);min-width:4px}
+.tl > .gap{background:transparent}
+.tl-axis{display:flex;justify-content:space-between;font-size:12px;color:var(--faint)}
+.phase-list{margin-top:20px}
+.pitem{border-top:1px solid var(--fill);padding:16px 0}
+.pitem-h{display:flex;align-items:baseline;gap:12px;cursor:pointer;flex-wrap:wrap}
+.pitem-h .nm{font-weight:600;font-size:17px}
+.pitem-h .rg{font-size:14px;color:var(--sub)}
+.pitem-h .tag{font-size:12px;color:#fff;background:var(--c);border-radius:980px;padding:1px 9px}
+.pitem-h .chev{margin-left:auto;color:var(--faint);transition:transform .2s}
+.pitem.open .chev{transform:rotate(90deg)}
+.pitem-b{display:none;padding:12px 0 0 0}
+.pitem.open .pitem-b{display:block}
+.summary{background:var(--input);border-radius:12px;padding:12px 16px;font-size:15px;white-space:pre-wrap;margin:0 0 12px}
+.sub-h{font-size:13px;font-weight:600;color:var(--sub);margin:14px 0 4px}
+.ro-goals{list-style:none;padding:0;margin:0;font-size:15px}
+.ro-goals li{padding:2px 0;display:flex;gap:6px;align-items:baseline}
+.ro-goals li .t{flex:1;min-width:0}
+.ro-goals li.d{color:var(--faint)}
+.ro-goals li.d .t{text-decoration:line-through}
+
+/* 日历（全屏） */
+body.full .wrap{max-width:none;padding:0 20px}
+body.full .nav-in{max-width:none;padding:0 24px}
+.calx{height:calc(100vh - 52px);display:flex;flex-direction:column;padding:18px 0 20px}
+.cal-head{display:flex;align-items:center;gap:10px;margin:0 4px 14px;flex-wrap:wrap}
+.cal-head h1{font-size:34px;font-weight:700;margin:0 18px 0 0;letter-spacing:-.01em}
+.cal-head .sp{flex:1}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--sub)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.calbox{flex:1;min-height:0;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.cal-wd{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--fill)}
+.cal-wd div{font-size:12px;color:var(--faint);text-align:right;padding:8px 12px}
+.weeks{flex:1;min-height:0;display:grid}
+.week{position:relative;border-bottom:1px solid var(--fill);min-height:0;overflow:hidden}
+.week:last-child{border-bottom:0}
+.wk-bg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.day{border-right:1px solid var(--fill);padding:6px 8px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:4px;transition:background .15s}
+.day:last-child{border-right:0}
+.day:hover{background:var(--fill)}
+.day.wkend{background:color-mix(in srgb,var(--input) 40%,transparent)}
+.day.sel{background:var(--glass-strong);box-shadow:inset 0 0 0 1.5px var(--focus)}
+.day .num{white-space:nowrap;font-size:14px;min-width:26px;height:26px;padding:0 4px;display:grid;place-items:center;border-radius:13px;font-variant-numeric:tabular-nums}
+.day.out .num{color:var(--faint);opacity:.6}
+.day.today .num{background:var(--danger);color:#fff;font-weight:600}
+.day .dots{display:flex;gap:3px;padding-top:9px}
+.day .dots{align-items:center;padding-top:6px}
+.day .dots span{width:7px;height:7px;border-radius:50%}
+.day .dots .badge{width:auto;height:auto;border-radius:980px;font-size:10px;font-weight:600;line-height:1;padding:3px 6px;
+  color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.gl{list-style:none;padding:0;margin:0;font-size:14px}
+.gl li{display:flex;gap:8px;padding:3px 0;align-items:baseline}
+.gl li .mk{flex:none;width:14px;text-align:center;color:var(--faint)}
+.gl li .t{flex:1;min-width:0}
+.gl li.ok .mk{color:var(--ok);font-weight:700}
+.gl li.old{color:var(--faint)}
+.gl li.old .t{text-decoration:line-through}
+.gl .k{font-size:11px;color:var(--faint);background:var(--input);border-radius:980px;padding:1px 7px;flex:none}
+.gl li.ok .k{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.dp{margin-top:12px}
+.del-row{margin:6px 0 0;text-align:right;font-size:12px}
+#toast{position:fixed;left:50%;bottom:28px;z-index:50;display:flex;align-items:center;gap:16px;padding:10px 20px;border-radius:980px;
+  font-size:14px;background:var(--sheet);border:0;box-shadow:0 8px 30px rgba(0,0,0,.16);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  opacity:0;transform:translate(-50%,16px);pointer-events:none;transition:opacity .2s,transform .2s}
+#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toast .lnk{color:var(--text);font-weight:600;text-decoration:none}
+.day-sum{font-size:13px;color:var(--sub);margin:0 0 6px}
+.day-item .sub-h{margin:12px 0 4px}
+/* 侧边面板里的领域目标放大 */
+.day-item .sub-h.big{font-size:15px;color:var(--text);margin:12px 0 4px}
+.gl.big{font-size:18px;font-weight:500}
+.gl.big li{padding:5px 0;gap:10px}
+.gl.big li .mk{width:20px;font-size:18px}
+.gl.big .k{font-size:12px;font-weight:400}
+.wk-bars{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:24px;row-gap:3px;padding:38px 0 4px;pointer-events:none}
+.bar{pointer-events:auto;margin:0 3px;border-radius:7px;padding:0 8px;font-size:12px;font-weight:600;line-height:24px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
+  background:color-mix(in srgb,var(--c) 22%,transparent);color:color-mix(in srgb,var(--c) 62%,var(--text));
+  border:1px solid color-mix(in srgb,var(--c) 30%,transparent)}
+.bar:hover{background:color-mix(in srgb,var(--c) 34%,transparent)}
+.bar.s{border-left:3px solid var(--c)}
+.bar.cl{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;border-left-width:0}
+.bar.cr{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;border-right-width:0}
+.bar.on{background:linear-gradient(90deg,color-mix(in srgb,var(--c) 22%,transparent) 70%,color-mix(in srgb,var(--c) 8%,transparent))}
+.bar .dm{font-weight:400;opacity:.75;margin-right:4px}
+.more{pointer-events:auto;font-size:11px;color:var(--sub);padding:0 10px;line-height:24px}
+
+.drawer{position:fixed;top:64px;right:16px;bottom:16px;width:min(400px,calc(100vw - 32px));z-index:15;
+  background:var(--panel);border:1px solid var(--glass-border);border-radius:24px;
+  box-shadow:0 20px 60px rgba(0,0,0,.18);padding:24px;overflow-y:auto}
+.drawer.anim{animation:slide .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes slide{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+.drawer-h{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
+.drawer-h h2{font-size:26px;font-weight:700;margin:0;flex:1}
+.day-item{border-top:1px solid var(--fill);padding:16px 0}
+.day-item:first-of-type{border-top:0}
+.day-item .dhead{margin-bottom:2px}
+.day-item .dhead .vt-title{color:var(--c)}
+.day-item .pn{font-size:13px;color:var(--sub);margin:0 0 8px}
+.day-item textarea{min-height:96px}
+
+/* 弹窗 */
+dialog{border:1px solid var(--glass-border);border-radius:24px;padding:0;background:var(--sheet);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);color:var(--text);width:min(520px,calc(100vw - 32px));
+  box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:calc(100vh - 40px);overflow:hidden}
+dialog::backdrop{background:rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+/* 弹窗：内容区可滚动，按钮固定在底部 */
+.dlg{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+.dlg-body{overflow-y:auto;min-height:0;padding:30px 30px 4px}
+.dlg h2{font-size:24px;font-weight:700;margin:0 0 4px}
+.dlg .hint{font-size:14px;color:var(--sub);margin:0 0 20px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--sub);margin-bottom:6px}
+.field input[type=text],.field input[type=date],.field textarea{width:100%}
+.field textarea{min-height:90px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--sub)}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatches label{width:30px;height:30px;border-radius:50%;background:var(--sw);cursor:pointer;display:block;margin:0;
+  box-shadow:0 0 0 2px var(--sheet),0 0 0 2px transparent}
+.swatches input{display:none}
+.swatches input:checked + label{box-shadow:0 0 0 2px var(--sheet),0 0 0 4px var(--sw)}
+.swatches .custom{position:relative;background:conic-gradient(#ff3b30,#ffcc00,#34c759,#32ade6,#5856d6,#ff2d55,#ff3b30)}
+.swatches .custom input[type=color]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:0;padding:0}
+.dlg-foot{display:flex;gap:10px;justify-content:flex-end;align-items:center;padding:16px 30px 26px}
+.dlg.scrolls .dlg-foot{border-top:1px solid var(--fill)}
+.dlg-foot .left{margin-right:auto}
+.divider{height:1px;background:var(--fill);margin:20px 0}
+
+@media (max-width:640px){
+  .hero{padding:40px 0 28px}
+  .hero h1{font-size:40px}
+  .hero .lead{font-size:19px}
+  .ph-name{font-size:32px}
+  .card{padding:22px}
+  .bar .dm{display:none}
+  .cal-head h1{font-size:26px}
+  .tabs{gap:14px}
+  .nav-in{gap:16px}
+}
+</style>
+</head>
+<body>
+<nav class="nav"><div class="nav-in">
+  <a class="brand" href="#/">阶段日志</a>
+  <div class="tabs"><a href="#/" id="tab-home">总览</a><a href="#/cal" id="tab-cal">日历</a></div>
+  <div class="sp"></div>
+  <span class="save" id="save"></span>
+  <button class="btn sm" data-act="new-domain">＋ 新领域</button>
+</div></nav>
+<main class="wrap" id="app"></main>
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+// 苹果系统色
+const COLORS = ['#34c759','#ff9500','#af52de','#ff2d55','#30b0c7','#5856d6','#ffcc00','#ff3b30','#00c7be','#32ade6','#a2845e','#007aff'];
+const WEEK = ['日','一','二','三','四','五','六'];
+let DB = {version:1, domains:[], phases:[], entries:[], reflections:[], todos:[]};
+let loaded = false;   // 数据读进来之后才允许保存（App 退出前会检查）
+const ui = {calMonth:null, calDay:null, open:{}, editorDate:{}, showDone:{}};
+
+/* ---------- 工具 ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = () => ymd(new Date());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate()+n); return ymd(d); };
+const utc = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y, m-1, d); };
+const diff = (a, b) => Math.round((utc(b) - utc(a)) / 864e5);   // b - a，单位天
+const fmt = s => { const d = parse(s); const y = d.getFullYear() !== new Date().getFullYear() ? d.getFullYear()+'年' : ''; return `${y}${d.getMonth()+1}月${d.getDate()}日`; };
+const fmtW = s => `${fmt(s)} 周${WEEK[parse(s).getDay()]}`;
+
+/* ---------- 数据查询 ---------- */
+const domain = id => DB.domains.find(d => d.id === id);
+const phase = id => DB.phases.find(p => p.id === id);
+const phasesOf = did => DB.phases.filter(p => p.domainId === did).sort((a,b) => a.startDate.localeCompare(b.startDate));
+const activePhase = did => DB.phases.find(p => p.domainId === did && !p.endDate);
+const entriesOf = pid => DB.entries.filter(e => e.phaseId === pid).sort((a,b) => b.date.localeCompare(a.date));
+const entryOf = (pid, date) => DB.entries.find(e => e.phaseId === pid && e.date === date);
+const phaseEnd = p => p.endDate || today();
+// 同一天可能有两个阶段（旧阶段在这天结束、新阶段在这天开始）
+const phasesOn = (did, date) => phasesOf(did).filter(p => p.startDate <= date && (!p.endDate || date <= p.endDate));
+const dayNo = (p, date) => diff(p.startDate, date) + 1;
+
+/* ---------- 保存 ---------- */
+let saveTimer = null;
+function setSave(t, err){ const el = $('#save'); el.textContent = t; el.classList.toggle('err', !!err); }
+function save(){
+  setSave('保存中…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 400);
+}
+let retries = 0;
+async function flush(unloading){
+  clearTimeout(saveTimer); saveTimer = null;
+  const body = JSON.stringify(DB);
+  try{
+    // keepalive 只在关页面时用：浏览器限制 keepalive 请求不能超过 64KB，数据多了平时保存会失败
+    const keepalive = !!unloading && new Blob([body]).size < 60000;
+    const r = await fetch('/api/data', {method:'PUT', headers:{'Content-Type':'application/json'}, body, keepalive});
+    if(!r.ok) throw new Error(r.status);
+    setSave('已保存'); retries = 0;
+  }catch(e){
+    setSave('保存失败', true);
+    // 在 App 里：请 App 重新启动本地服务，稍后自动重试
+    const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.app;
+    if(bridge && retries < 5){ retries++; bridge.postMessage('restart-server'); setTimeout(() => { if(!saveTimer) save(); }, 1500); }
+  }
+}
+window.addEventListener('beforeunload', () => { if(saveTimer) flush(true); });
+
+function setEntry(pid, date, text){
+  const e = entryOf(pid, date);
+  if(!text.trim()){ if(e) DB.entries = DB.entries.filter(x => x !== e); }
+  else if(e){ e.text = text; e.updatedAt = Date.now(); }
+  else DB.entries.push({id:uid(), phaseId:pid, date, text, updatedAt:Date.now()});
+  save();
+}
+// 目标的主人："d:领域id" 或 "p:阶段id"
+function owner(key){ const [k, id] = key.split(':'); const o = k === 'd' ? domain(id) : phase(id); if(o && !o.goals) o.goals = []; return o; }
+const goalsFrom = (text, date = today()) => text.split('\n').map(s => s.trim()).filter(Boolean).map(t => ({id:uid(), text:t, done:false, createdAt:date}));
+// 某个目标在 date 那天的状态：null＝还没创建；'done'＝已完成；'open'＝进行中
+// 旧目标没有 createdAt 就用领域创建日 / 阶段开始日；勾掉时没记 doneAt 的视为“已完成、日期未知”
+function goalState(g, fallback, date){
+  if((g.createdAt || fallback) > date) return null;
+  if(g.done && (!g.doneAt || g.doneAt <= date)) return 'done';
+  return 'open';
+}
+// 某领域在 date 那天完成的目标（领域目标 + 它所有阶段的目标）
+const doneOn = (d, date) => (d.goals || []).concat(...phasesOf(d.id).map(p => p.goals)).filter(g => g.done && g.doneAt === date);
+
+/* ---------- 路由 ---------- */
+function route(){
+  const h = location.hash.replace(/^#\/?/, '');
+  const [a, b] = h.split('/');
+  $('#tab-home').classList.toggle('on', !a);
+  $('#tab-cal').classList.toggle('on', a === 'cal');
+  document.body.classList.toggle('full', a === 'cal');
+  document.body.classList.toggle('home', !a);
+  if(a === 'd' && domain(b)) return renderDomain(b);
+  if(a === 'cal') return renderCal();
+  renderHome();
+}
+let curHash = location.hash;
+window.addEventListener('hashchange', () => {
+  const from = curHash;
+  curHash = location.hash;
+  const toDomain = curHash.startsWith('#/d/'), fromDomain = from.startsWith('#/d/');
+  if(toDomain && !fromDomain) ui.back = from || '#/';
+  withTransition(() => { route(); scrollTo(0, 0); });
+});
+
+/* ---------- 页面切换动画 ---------- */
+// 领域名：点进领域时它会飞到新页面的大标题；从领域页回来时，刚才那个领域的名字再飞回原位
+const vtTitle = (d, tag = 'span', attrs = '') =>
+  `<${tag} class="vt-title" data-vt-title ${attrs}${d.id === ui.lastDomain ? ' style="view-transition-name:dom-title"' : ''}>${esc(d.name)}</${tag}>`;
+let vtActive = false, vtToken = 0;
+// 两帧之后执行（页面在后台时 rAF 不跑，用定时器兜底）
+const afterTwoFrames = fn => {
+  let done = false;
+  const go = () => { if(!done){ done = true; fn(); } };
+  requestAnimationFrame(() => requestAnimationFrame(go));
+  setTimeout(go, 120);
+};
+function withTransition(update){
+  if(!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) return update();
+  // 毛玻璃（backdrop-filter）如果被截进切换动画，Safari 内核会把模糊层残留在屏幕上：
+  // 所以先关掉毛玻璃，等两帧让它真正撤掉，再开始切换；动画结束后恢复
+  const token = ++vtToken;
+  vtActive = true;
+  document.documentElement.dataset.vt = 'on';
+  afterTwoFrames(() => {
+    if(token !== vtToken) return;   // 等待期间又切换了，交给新的那次
+    const t = document.startViewTransition(update);
+    t.updateCallbackDone.finally(() => { if(token === vtToken) vtActive = false; });
+    t.finished.finally(() => { if(token === vtToken) delete document.documentElement.dataset.vt; });
+  });
+}
+// 点进某个领域之前，只给被点的那个名字标上共享名（名字必须唯一）
+document.addEventListener('click', ev => {
+  const a = ev.target.closest('a[href^="#/d/"]');
+  if(!a) return;
+  const box = a.closest('.dcard, .day-item') || a;
+  const title = box.querySelector('[data-vt-title]');
+  if(!title) return;
+  document.querySelectorAll('[data-vt-title]').forEach(x => { x.style.viewTransitionName = ''; });
+  title.style.viewTransitionName = 'dom-title';
+  const dr = document.querySelector('.drawer');
+  if(dr){ ui.drawerScroll = dr.scrollTop; ui.drawerScrollDay = ui.calDay; }
+}, true);
+
+/* ---------- 总览 ---------- */
+function miniGoals(d, p){
+  const part = (label, gs) => {
+    const open = gs.filter(g => !g.done);
+    if(!open.length) return '';
+    return `<li class="lbl">${label}</li>` + open.slice(0, 2).map(g => `<li>${esc(g.text)}</li>`).join('') +
+      (open.length > 2 ? `<li class="more">还有 ${open.length-2} 个</li>` : '');
+  };
+  const html = part('领域目标', d.goals || []) + (p ? part('阶段目标', p.goals) : '');
+  return html || '<li class="more">还没有目标</li>';
+}
+
+function renderHome(){
+  const t = today();
+  const ds = DB.domains;
+  if(!ds.length){
+    $('#app').innerHTML = `<div class="empty"><h1>从一个领域开始。</h1>
+      <p>比如“论文”“健身”“英语”。每个领域一次进行一个阶段，<br>每天写下做了什么，随时看到接下来的目标。</p>
+      <button class="btn" data-act="new-domain">添加第一个领域</button></div>`;
+    return;
+  }
+  const active = ds.filter(d => activePhase(d.id)).length;
+  const written = ds.filter(d => { const p = activePhase(d.id); return p && entryOf(p.id, t); }).length;
+  const dueNow = DB.todos.filter(x => !x.done && x.due && x.due <= t).length;
+  const cards = ds.map(d => {
+    const p = activePhase(d.id);
+    if(!p) return `<a class="card dcard" href="#/d/${d.id}" style="--c:${d.color}">
+      <div class="dhead"><span class="dot"></span>${vtTitle(d)}</div>
+      <h3 class="none">没有进行中的阶段</h3><p class="meta">点进去开启下一阶段</p>
+      <ul class="mini-goals">${miniGoals(d, null)}</ul></a>`;
+    const es = entriesOf(p.id);
+    const done = !!entryOf(p.id, t);
+    const goals = miniGoals(d, p);
+    return `<a class="card dcard" href="#/d/${d.id}" style="--c:${d.color}">
+      <div class="dhead"><span class="dot"></span>${vtTitle(d)}
+        <span class="dstatus ${done?'done':''}">${done ? '今天已记录' : '今天未记录'}</span></div>
+      <h3>${esc(p.name)}</h3>
+      <p class="meta">第 ${dayNo(p, t)} 天 · ${fmt(p.startDate)}开始 · ${es.length} 条记录</p>
+      <ul class="mini-goals">${goals}</ul>
+      ${es[0] ? `<p class="last">${es[0].date === t ? '今天' : fmt(es[0].date)}：${esc(es[0].text)}</p>` : ''}
+    </a>`;
+  }).join('');
+  const d = new Date();
+  $('#app').innerHTML = `
+    <section class="hero"><p class="eyebrow">今天</p>
+      <h1>${d.getMonth()+1}月${d.getDate()}日 星期${WEEK[d.getDay()]}</h1>
+      <p class="lead">${active} 个阶段进行中，今天已记录 ${written} 个${dueNow ? `，${dueNow} 个待办今天要做` : ''}。</p></section>
+    <div class="home-cols">
+      <div class="grid">${cards}
+        <button class="add-card" data-act="new-domain"><span class="plus">＋</span>新领域</button></div>
+      ${todoHTML()}
+    </div>
+    ${reflectHTML()}`;
+  updateTodoChip();
+}
+
+/* ---------- 待办（参考滴答清单：快速添加 + 自动识别日期） ---------- */
+const WD = {'一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '日':7, '天':7};   // 周一 = 1 … 周日 = 7
+const isoDow = s => parse(s).getDay() || 7;
+function validDate(y, m, d){ const x = new Date(y, m - 1, d); return x.getMonth() === m - 1 && x.getDate() === d ? ymd(x) : null; }
+// 从一句话里认出日期，返回 {date, match}；认不出返回 null
+function parseDue(text){
+  const t = today(), [ty, tm] = t.split('-').map(Number);
+  const weekOf = (c, k) => addDays(addDays(t, 1 - isoDow(t)), 7 * k + WD[c] - 1);   // 第 k 周（0 = 本周）的星期 c
+  const rules = [
+    [/大后天/, () => addDays(t, 3)],
+    [/后天/, () => addDays(t, 2)],
+    [/明天|明日|明早|明晚/, () => addDays(t, 1)],
+    [/今天|今日|今早|今晚/, () => t],
+    [/(\d{1,2})月(\d{1,2})[日号]?/, m => { const d = validDate(ty, +m[1], +m[2]); return d && d < t ? validDate(ty + 1, +m[1], +m[2]) : d; }],
+    [/下下(?:周|星期|礼拜)([一二三四五六日天])/, m => weekOf(m[1], 2)],
+    [/下(?:周|星期|礼拜)([一二三四五六日天])/, m => weekOf(m[1], 1)],
+    [/(?:本|这)(?:周|星期|礼拜)([一二三四五六日天])/, m => weekOf(m[1], 0)],
+    [/(?:周|星期|礼拜)([一二三四五六日天])/, m => { const d = weekOf(m[1], 0); return d < t ? addDays(d, 7) : d; }],
+    [/(\d{1,3})天(?:后|之后|以后)/, m => addDays(t, +m[1])],
+    [/(\d{1,2})[号日]/, m => {
+      const d = validDate(ty, tm, +m[1]);
+      return d && d >= t ? d : validDate(tm === 12 ? ty + 1 : ty, tm === 12 ? 1 : tm + 1, +m[1]);
+    }],
+  ];
+  for(const [re, fn] of rules){
+    const m = text.match(re);
+    if(m){ const d = fn(m); if(d) return {date: d, match: m[0]}; }
+  }
+  return null;
+}
+// 把认出的日期词从标题里去掉（去掉后为空就保留原句）
+function stripDue(text, match){
+  const s = text.replace(match, ' ').replace(/\s+/g, ' ').replace(/^[\s,，。、;；:：]+|[\s,，。、;；:：]+$/g, '');
+  return s || text.trim();
+}
+function dueLabel(d){
+  const n = diff(today(), d);
+  if(n === 0) return '今天';
+  if(n === 1) return '明天';
+  if(n === 2) return '后天';
+  if(n === -1) return '昨天';
+  if(n > 2 && n < 7) return '周' + WEEK[parse(d).getDay()];
+  return fmt(d);
+}
+// 正在输入的这条待办用哪个日期：手动选的 > 自动认出的（点了 × 就不认）
+function draftDue(text){
+  if(ui.todoManual) return {date: ui.todoManual, match: null};
+  if(ui.todoIgnore) return null;
+  return parseDue(text);
+}
+function updateTodoChip(){
+  const inp = document.querySelector('[data-todo-input]'), chip = $('#todo-chip');
+  if(!inp || !chip) return;
+  const r = draftDue(inp.value), rel = r && dueLabel(r.date);
+  chip.classList.toggle('show', !!r);
+  chip.innerHTML = r ? `<span>${['今天', '明天', '后天', '昨天'].includes(rel) ? `${rel} · ${fmtW(r.date)}` : fmtW(r.date)}</span>
+    <button type="button" data-act="todo-chip-x" title="不设日期">×</button>` : '';
+  $('#todo-cal').classList.toggle('on', !!r);
+}
+const CAL_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+function todoItemHTML(td){
+  const t = today(), over = !td.done && td.due && td.due < t;
+  const due = ui.todoEditDue === td.id
+    ? `<span class="due-edit"><input type="date" value="${td.due || t}" data-todo-due-input data-tid="${td.id}">
+        <button class="lnk" data-act="todo-due-clear" data-tid="${td.id}">清除</button></span>`
+    : td.done ? `<span class="todo-due">${td.doneAt === t ? '今天完成' : fmt(td.doneAt || t) + '完成'}</span>`
+    : td.due ? `<button class="todo-due ${over ? 'over' : ''}" data-act="todo-due" data-tid="${td.id}">${dueLabel(td.due)}</button>`
+    : `<button class="todo-due add" data-act="todo-due" data-tid="${td.id}">＋日期</button>`;
+  return `<li class="todo-item ${td.done ? 'done' : ''}">
+    <input type="checkbox" class="ck" ${td.done ? 'checked' : ''} data-act="todo-toggle" data-tid="${td.id}">
+    <input class="tt" type="text" value="${esc(td.text)}" data-todo-text data-tid="${td.id}">
+    ${due}
+    <button class="x" title="删除" data-act="todo-del" data-tid="${td.id}">×</button></li>`;
+}
+function todoHTML(){
+  const open = DB.todos.filter(x => !x.done)
+    .sort((a, b) => (a.due || '9999-12-31').localeCompare(b.due || '9999-12-31') || a.createdAt - b.createdAt);
+  const done = DB.todos.filter(x => x.done).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
+  return `<aside class="card todo">
+    <div class="todo-h"><h2>待办</h2><span class="n">${open.length ? open.length + ' 项' : ''}</span></div>
+    <div class="todo-add">
+      <form data-form="todo-add" autocomplete="off">
+        <input type="text" name="t" placeholder="添加待办，比如“明天交报告”" data-todo-input></form>
+      <button type="button" class="todo-cal" id="todo-cal" data-act="todo-cal" title="选日期">${CAL_SVG}</button>
+      <!-- 日期选择器放在表单外：表单里只有一个输入框，回车才会提交 -->
+      <input type="date" class="sr-date" id="todo-date" tabindex="-1" aria-hidden="true">
+    </div>
+    <div class="todo-chip" id="todo-chip"></div>
+    ${open.length ? `<ul class="todo-list">${open.map(todoItemHTML).join('')}</ul>`
+      : `<p class="todo-empty">${done.length ? '都做完了。' : '还没有待办。输入后按回车添加。'}</p>`}
+    ${done.length ? `<p class="done-head" data-act="toggle-todo-done">${ui.showTodoDone ? '▾' : '▸'} 已完成 ${done.length}</p>
+      ${ui.showTodoDone ? `<ul class="todo-list">${done.map(todoItemHTML).join('')}</ul>` : ''}` : ''}
+  </aside>`;
+}
+// 只重画待办这一栏（不动领域卡片），保留输入框里正在打的字
+function refreshTodo(){
+  const box = document.querySelector('.todo');
+  if(!box) return route();
+  const inp = box.querySelector('[data-todo-input]'), val = inp ? inp.value : '', focused = document.activeElement === inp;
+  box.outerHTML = todoHTML();
+  const ni = document.querySelector('[data-todo-input]');
+  if(ni){ ni.value = val; if(focused) ni.focus(); }
+  updateTodoChip();
+}
+const todoOf = id => DB.todos.find(x => x.id === id);
+function openPicker(input){
+  try{ input.showPicker(); }catch(e){ input.focus(); }
+}
+
+// 时期感悟：最新一条是“现在”，可以直接改；开始新的一条后，旧的归档
+function reflectHTML(){
+  const rs = DB.reflections.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+  const cur = rs[0], past = rs.slice(1);
+  const range = (r, i) => { const next = rs[i - 1]; return `${fmt(r.date)} – ${next ? fmt(next.date) : '至今'}`; };
+  return `<h2 class="sec-title">时期感悟</h2>
+    <div class="card reflect">
+      ${cur ? `<div class="editor-top"><h2>这段时间的感悟</h2><span class="rdate">${fmt(cur.date)}开始</span></div>
+        <textarea data-reflect="${cur.id}" placeholder="这一时期的感受、想法、学到的东西……">${esc(cur.text)}</textarea>
+        <div class="editor-foot"><span>自动保存${cur.updatedAt ? ' · 最后修改 ' + new Date(cur.updatedAt).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''}</span></div>`
+      : `<p class="muted" style="margin:0 0 4px">还没有写过时期感悟。</p>`}
+      <div class="ph-actions">
+        <button class="btn" data-act="reflect-new">${cur ? '开始新的感悟' : '写第一段感悟'}</button>
+        ${past.length ? `<button class="btn gray" data-act="reflect-toggle">${ui.showPast ? '收起过去的感悟' : `查看过去的感悟（${past.length}）`}</button>` : ''}
+      </div>
+      ${ui.showPast && past.length ? `<div class="past">${past.map(r => {
+        const i = rs.indexOf(r);
+        return `<div class="past-item"><div class="entry-h"><span class="d">${range(r, i)}</span>
+          <span class="n">写于 ${fmt(r.date)}${r.updatedAt ? ' · 最后修改 ' + fmt(ymd(new Date(r.updatedAt))) : ''}</span>
+          <button class="lnk" data-act="reflect-del" data-rid="${r.id}">删除</button></div>
+          <p>${esc(r.text) || '<span class="muted">（空）</span>'}</p></div>`;
+      }).join('')}</div>` : ''}
+    </div>`;
+}
+
+/* ---------- 领域页 ---------- */
+function goalsHTML(key, empty){
+  const o = owner(key);
+  const li = g => `<li class="goal ${g.done?'done':''}">
+      <input type="checkbox" ${g.done?'checked':''} data-act="goal-toggle" data-key="${key}" data-gid="${g.id}">
+      <input class="gt" type="text" value="${esc(g.text)}" data-goal-text data-key="${key}" data-gid="${g.id}">
+      <button class="x" title="删除" data-act="goal-del" data-key="${key}" data-gid="${g.id}">×</button></li>`;
+  const open = o.goals.filter(g => !g.done), done = o.goals.filter(g => g.done);
+  return `<ul class="goals">${open.map(li).join('') || `<li class="muted" style="padding:6px 0">${empty}</li>`}</ul>
+    ${done.length ? `<p class="done-head" data-act="toggle-done" data-key="${key}">${ui.showDone[key] ? '▾' : '▸'} 已完成 ${done.length} 个</p>
+      ${ui.showDone[key] ? `<ul class="goals">${done.map(li).join('')}</ul>` : ''}` : ''}
+    <form class="goal-add" data-form="goal-add" data-key="${key}">
+      <input type="text" name="t" placeholder="添加一个目标，回车确认" autocomplete="off">
+      <button class="btn sm gray" type="submit">添加</button></form>`;
+}
+
+function goalCards(d, p){
+  return `<div class="side">
+    <div class="card" style="--c:${d.color}">
+      <h2>领域目标</h2><p class="hint">长期方向，跨阶段一直保留。</p>
+      ${goalsHTML('d:' + d.id, '还没有领域目标。')}
+    </div>
+    ${p ? `<div class="card" style="--c:${d.color}">
+      <h2>阶段目标 <span class="opt">可选</span></h2><p class="hint">只属于“${esc(p.name)}”这个阶段。</p>
+      ${goalsHTML('p:' + p.id, '这个阶段没有单独的目标。')}
+    </div>` : ''}
+  </div>`;
+}
+
+function entryListHTML(p){
+  const es = entriesOf(p.id);
+  if(!es.length) return '<p class="muted">这个阶段还没有记录。</p>';
+  return es.map(e => `<div class="entry"><div class="entry-h"><span class="d">${fmtW(e.date)}</span>
+      <span class="n">第 ${dayNo(p, e.date)} 天</span>
+      <span class="acts"><button class="lnk" data-act="entry-edit" data-did="${p.domainId}" data-date="${e.date}">编辑</button>
+      <button class="lnk del" data-act="entry-del" data-pid="${p.id}" data-date="${e.date}">删除</button></span></div>
+      <p>${esc(e.text)}</p></div>`).join('');
+}
+
+function timelineHTML(d, ps){
+  if(!ps.length) return '';
+  const start = ps[0].startDate;
+  const end = ps.reduce((m, p) => phaseEnd(p) > m ? phaseEnd(p) : m, today());
+  const total = diff(start, end) + 1;
+  let cur = start, segs = '';
+  ps.forEach((p, i) => {
+    if(p.startDate > cur) segs += `<div class="gap" style="flex:${diff(cur, p.startDate)}"></div>`;
+    const s = p.startDate < cur ? cur : p.startDate;
+    const len = Math.max(diff(s, phaseEnd(p)) + 1, 1);
+    const op = p.endDate ? (0.45 + 0.4 * (i / Math.max(ps.length - 1, 1))) : 1;
+    segs += `<div style="flex:${len};background:color-mix(in srgb, ${d.color} ${Math.round(op*100)}%, #8e8e93)" title="${esc(p.name)}">${esc(p.name)}</div>`;
+    cur = addDays(phaseEnd(p), 1);
+  });
+  return `<div class="tl">${segs}</div><div class="tl-axis"><span>${fmt(start)}</span><span>共 ${total} 天</span><span>${end === today() ? '今天' : fmt(end)}</span></div>`;
+}
+
+function phaseItemHTML(d, p){
+  const es = entriesOf(p.id);
+  const len = diff(p.startDate, phaseEnd(p)) + 1;
+  const open = ui.open[p.id];
+  const goals = p.goals.length ? `<p class="sub-h">阶段目标</p><ul class="ro-goals">${p.goals.map(g => `<li class="${g.done?'d':''}"><span>${g.done?'✓':'○'}</span><span class="t">${esc(g.text)}</span><button class="x" title="删除这个目标" data-act="goal-del" data-key="p:${p.id}" data-gid="${g.id}">×</button></li>`).join('')}</ul>` : '';
+  const ents = es.length ? `<p class="sub-h">每日记录</p><div class="entries">${es.map(e => `<div class="entry"><div class="entry-h"><span class="d">${fmtW(e.date)}</span><span class="n">第 ${dayNo(p, e.date)} 天</span><span class="acts"><button class="lnk del" data-act="entry-del" data-pid="${p.id}" data-date="${e.date}">删除</button></span></div><p>${esc(e.text)}</p></div>`).join('')}</div>` : '';
+  return `<div class="pitem ${open?'open':''}" style="--c:${d.color}">
+    <div class="pitem-h" data-act="toggle-phase" data-pid="${p.id}">
+      <span class="nm">${esc(p.name)}</span>
+      ${!p.endDate ? '<span class="tag">进行中</span>' : ''}
+      <span class="rg">${fmt(p.startDate)} – ${p.endDate ? fmt(p.endDate) : '至今'} · ${len} 天 · ${es.length} 条记录</span>
+      <span class="chev">›</span></div>
+    <div class="pitem-b">
+      ${p.summary ? `<p class="summary">${esc(p.summary)}</p>` : ''}
+      ${goals}${ents}
+      <p style="margin:14px 0 0"><button class="lnk" data-act="edit-phase" data-pid="${p.id}">编辑这个阶段</button></p>
+    </div></div>`;
+}
+
+function renderDomain(did){
+  const d = domain(did), p = activePhase(did), ps = phasesOf(did), t = today();
+  ui.lastDomain = did;
+  let main;
+  if(p){
+    let ed = ui.editorDate[did] || t;
+    if(ed < p.startDate || ed > t) ed = t;
+    ui.editorDate[did] = ed;
+    const e = entryOf(p.id, ed);
+    main = `
+    <div class="card phase-hero" style="--c:${d.color}">
+      <p class="ph-label">当前阶段</p>
+      <h2 class="ph-name">${esc(p.name)}</h2>
+      <p class="ph-day"><b>第 ${dayNo(p, t)} 天</b>　${fmt(p.startDate)}开始 · ${entriesOf(p.id).length} 条记录</p>
+      <div class="ph-actions">
+        <button class="btn" data-act="end-phase" data-pid="${p.id}">结束并开启下一阶段</button>
+        <button class="btn gray" data-act="edit-phase" data-pid="${p.id}">编辑阶段</button></div>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <div class="editor-top"><h2>${ed === t ? '今天做了什么' : fmtW(ed) + ' 做了什么'}</h2>
+          <input type="date" id="ed-date" value="${ed}" min="${p.startDate}" max="${t}" data-did="${did}"></div>
+        <textarea id="ed-text" data-entry data-pid="${p.id}" data-date="${ed}" placeholder="写下这一天在这个阶段做的事……">${esc(e ? e.text : '')}</textarea>
+        <div class="editor-foot"><span>自动保存 · 清空即删除这条记录</span><span>第 ${dayNo(p, ed)} 天</span></div>
+        <div class="divider"></div>
+        <div class="entries" id="entry-list">${entryListHTML(p)}</div>
+      </div>
+      ${goalCards(d, p)}
+    </div>`;
+  }else{
+    main = `<div class="card phase-hero" style="--c:${d.color}">
+      <p class="ph-label">当前阶段</p><h2 class="ph-name" style="color:var(--faint)">没有进行中的阶段</h2>
+      <p class="ph-day">${ps.length ? `上一阶段“${esc(ps[ps.length-1].name)}”结束于 ${fmt(ps[ps.length-1].endDate)}。` : '开始这个领域的第一个阶段吧。'}</p>
+      <div class="ph-actions"><button class="btn" data-act="start-phase" data-did="${did}">开启新阶段</button></div></div>
+    <div class="cols">${goalCards(d, null)}</div>`;
+  }
+  $('#app').innerHTML = `
+    <section class="hero" style="--c:${d.color}">
+      <a class="back" href="${ui.back || '#/'}">‹ ${(ui.back || '').startsWith('#/cal') ? '日历' : '总览'}</a>
+      <div class="hero-row"><div><p class="eyebrow">领域</p><h1><span class="vt-title" data-vt-title style="view-transition-name:dom-title">${esc(d.name)}</span></h1></div>
+        <button class="btn ghost sm" data-act="edit-domain" data-did="${did}">编辑领域</button></div>
+    </section>
+    ${main}
+    ${ps.length ? `<h2 class="sec-title">阶段历程</h2>
+      <div class="card">${timelineHTML(d, ps)}
+        <div class="phase-list">${ps.slice().reverse().map(x => phaseItemHTML(d, x)).join('')}</div></div>` : ''}`;
+}
+
+/* ---------- 日历 ---------- */
+// 一周里的阶段条：按开始日期排，贪心分配到不重叠的行
+function weekBars(ws){
+  const we = addDays(ws, 6), t = today();
+  const segs = DB.phases.filter(p => domain(p.domainId)).map(p => {
+    const end = p.endDate || t;
+    if(end < ws || p.startDate > we || end < p.startDate) return null;
+    const a = p.startDate < ws ? ws : p.startDate, b = end > we ? we : end;
+    return {p, d:domain(p.domainId), col:diff(ws, a) + 1, span:diff(a, b) + 1,
+      clipL:p.startDate < ws, clipR:end > we, ongoing:!p.endDate && b === t};
+  }).filter(Boolean).sort((x, y) => x.col - y.col || y.span - x.span);
+  const lanes = [];
+  for(const g of segs){
+    let k = lanes.findIndex(endCol => endCol < g.col);
+    if(k < 0){ k = lanes.length; lanes.push(0); }
+    lanes[k] = g.col + g.span - 1; g.lane = k;
+  }
+  return segs;
+}
+
+function renderCal(){
+  const t = today();
+  if(!ui.calMonth) ui.calMonth = t.slice(0, 7);
+  const [y, m] = ui.calMonth.split('-').map(Number);
+  const first = new Date(y, m-1, 1);
+  const offset = (first.getDay() + 6) % 7;               // 周一开头
+  const startDay = ymd(new Date(y, m-1, 1 - offset));
+  const nWeeks = Math.ceil((offset + new Date(y, m, 0).getDate()) / 7);
+  let weeks = '';
+  for(let w = 0; w < nWeeks; w++){
+    const ws = addDays(startDay, w * 7);
+    let bg = '';
+    for(let i = 0; i < 7; i++){
+      const ds = addDays(ws, i);
+      const dots = DB.domains.filter(d => phasesOn(d.id, ds).some(p => entryOf(p.id, ds)))
+        .map(d => `<span style="background:${d.color}" title="${esc(d.name)} 有记录"></span>`).join('');
+      const cls = ['day', ds.slice(0,7) !== ui.calMonth ? 'out' : '', ds === t ? 'today' : '', ds === ui.calDay ? 'sel' : '', i >= 5 ? 'wkend' : ''].join(' ');
+      const num = parse(ds).getDate() === 1 ? `${parse(ds).getMonth()+1}月1日` : parse(ds).getDate();
+      const nDone = DB.domains.reduce((n, d) => n + doneOn(d, ds).length, 0);
+      const badge = nDone ? `<span class="badge" title="这天完成了 ${nDone} 个目标">✓${nDone}</span>` : '';
+      bg += `<div class="${cls}" data-act="cal-day" data-date="${ds}"><span class="dots">${dots}${badge}</span><span class="num">${num}</span></div>`;
+    }
+    const bars = weekBars(ws).map(g => `<div class="bar ${g.clipL ? 'cl' : 's'} ${g.clipR ? 'cr' : ''} ${g.ongoing ? 'on' : ''}"
+        style="--c:${g.d.color};grid-column:${g.col} / span ${g.span};grid-row:${g.lane + 1}"
+        data-act="cal-day" data-date="${g.clipL ? ws : g.p.startDate}"
+        title="${esc(g.d.name)} · ${esc(g.p.name)}：${fmt(g.p.startDate)} – ${g.p.endDate ? fmt(g.p.endDate) : '至今'}"><span class="dm">${esc(g.d.name)}</span>${esc(g.p.name)}</div>`).join('');
+    weeks += `<div class="week"><div class="wk-bg">${bg}</div><div class="wk-bars">${bars}</div></div>`;
+  }
+  const prev = document.querySelector('.drawer');
+  const same = prev && prev.dataset.date === ui.calDay;
+  const keepScroll = same ? prev.scrollTop : (ui.drawerScrollDay === ui.calDay ? ui.drawerScroll || 0 : 0);
+  $('#app').innerHTML = `
+    <div class="calx">
+      <div class="cal-head"><h1>${y}年${m}月</h1>
+        ${DB.domains.length ? `<div class="legend">${DB.domains.map(d => `<span><i class="dot" style="--c:${d.color}"></i>${esc(d.name)}</span>`).join('')}</div>` : ''}
+        <div class="sp"></div>
+        <button class="btn icon" data-act="cal-prev" title="上个月">‹</button>
+        <button class="btn" data-act="cal-today">今天</button>
+        <button class="btn icon" data-act="cal-next" title="下个月">›</button></div>
+      <div class="card calbox">
+        <div class="cal-wd">${['一','二','三','四','五','六','日'].map(w => `<div>周${w}</div>`).join('')}</div>
+        <div class="weeks" style="grid-template-rows:repeat(${nWeeks},1fr)">${weeks}</div>
+      </div>
+    </div>
+    ${ui.calDay ? drawerHTML(ui.calDay, !same && !vtActive) : ''}`;
+  const dr = document.querySelector('.drawer');
+  if(dr) dr.scrollTop = keepScroll;
+}
+
+function drawerHTML(sel, animate){
+  const t = today();
+  // 一个目标在 sel 这天的样子：这天完成（绿）/ 进行中 / 更早完成（灰）
+  const rank = {ok:0, open:1, old:2};
+  const goalList = (goals, key, fallback) => goals.map(g => {
+    const st = goalState(g, fallback, sel);
+    if(!st) return null;
+    const cls = g.done && g.doneAt === sel ? 'ok' : st === 'done' ? 'old' : 'open';
+    return {g, cls};
+  }).filter(Boolean).sort((a, b) => rank[a.cls] - rank[b.cls]).map(({g, cls}) => {
+    const note = cls === 'ok' ? '这天完成' : cls === 'old' ? (g.doneAt ? fmt(g.doneAt) + '完成' : '已完成') : '';
+    return `<li class="${cls}"><span class="mk">${cls === 'open' ? '○' : '✓'}</span><span class="t">${esc(g.text)}</span>
+      ${note ? `<span class="k">${note}</span>` : ''}
+      <button class="x" title="删除这个目标" data-act="goal-del" data-key="${key}" data-gid="${g.id}">×</button></li>`;
+  }).join('');
+  const group = (title, list, cls = '') => list ? `<p class="sub-h ${cls}">${title}</p><ul class="gl ${cls}">${list}</ul>` : '';
+  let nEntries = 0, nDone = 0;
+  const blocks = DB.domains.map(d => {
+    const ps = phasesOn(d.id, sel);
+    // 最后一个阶段总是显示；同一天更早结束的阶段只在这天有记录或完成目标时显示
+    const shown = ps.filter((p, i) => i === ps.length - 1 || entryOf(p.id, sel) || p.goals.some(g => g.doneAt === sel));
+    const done = doneOn(d, sel).length;
+    if(!shown.length && !done) return '';
+    nDone += done;
+    if(shown.some(p => entryOf(p.id, sel))) nEntries++;
+    const phases = shown.map(p => {
+      const e = entryOf(p.id, sel);
+      return `<div class="dp">
+        <p class="pn">${esc(p.name)} · 第 ${dayNo(p, sel)} 天${p.endDate ? '（已结束的阶段）' : ''}</p>
+        ${group('阶段目标', goalList(p.goals, 'p:' + p.id, p.startDate))}
+        ${sel > t ? '<p class="muted">还没到这一天。</p>' : `
+          <p class="sub-h">这天做了什么</p>
+          <textarea data-entry data-pid="${p.id}" data-date="${sel}" placeholder="还没有记录，可以补写……">${esc(e ? e.text : '')}</textarea>
+          ${e ? `<p class="del-row"><button class="lnk del" data-act="entry-del" data-pid="${p.id}" data-date="${sel}">删除这条记录</button></p>` : ''}`}
+      </div>`;
+    }).join('');
+    return `<div class="day-item" style="--c:${d.color}">
+      <div class="dhead"><span class="dot"></span>${vtTitle(d, 'a', `href="#/d/${d.id}"`)}
+        <a class="btn xs open" href="#/d/${d.id}">查看领域 ›</a></div>
+      ${group('领域目标', goalList(d.goals || [], 'd:' + d.id, d.createdAt), 'big')}
+      ${phases}
+    </div>`;
+  }).join('');
+  const sum = sel > t ? '还没到这一天。' :
+    (nEntries || nDone ? `这天记录了 ${nEntries} 个领域${nDone ? `，完成 ${nDone} 个目标` : ''}。` : '这天还没有记录。') +
+    (sel < t ? '目标显示的是这一天当时的状态。' : '');
+  return `<aside class="drawer ${animate ? 'anim' : ''}" data-date="${sel}">
+    <div class="drawer-h"><h2>${fmtW(sel)}</h2><button class="btn icon" data-act="cal-close" title="关闭">×</button></div>
+    <p class="day-sum">${sel === t ? '今天 · ' : ''}${sum}</p>
+    ${blocks || '<p class="muted">这一天没有进行中的阶段。</p>'}
+  </aside>`;
+}
+
+/* ---------- 撤销提示 ---------- */
+let toastTimer = null, toastUndo = null;
+function toast(msg, undo){
+  let el = $('#toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  toastUndo = undo;
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button class="lnk" data-act="undo">撤销</button>' : ''}`;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); toastUndo = null; }, 6000);
+}
+
+/* ---------- 弹窗 ---------- */
+const dlg = $('#dlg');
+function modal(html, onSubmit){
+  dlg.innerHTML = `<form class="dlg" method="dialog"><div class="dlg-body">${html}</div></form>`;
+  const f = dlg.querySelector('form');
+  const ft = f.querySelector('.dlg-foot');
+  if(ft) f.appendChild(ft);   // 按钮移出滚动区，固定在弹窗底部
+  f.addEventListener('submit', ev => {
+    const btn = ev.submitter;
+    if(btn && btn.value === 'cancel') return;
+    ev.preventDefault();
+    const fd = Object.fromEntries(new FormData(f));
+    if(onSubmit(fd, btn && btn.value) !== false){ dlg.close(); route(); }
+  });
+  dlg.showModal();
+  const body = f.querySelector('.dlg-body');
+  f.classList.toggle('scrolls', body.scrollHeight > body.clientHeight + 1);
+  const first = f.querySelector('input[type=text],textarea');
+  if(first) first.focus();
+}
+const swatches = sel => {
+  const custom = !COLORS.includes(sel);
+  return `<div class="swatches">${COLORS.map((c, i) => `<input type="radio" name="color" id="sw${i}" value="${c}" ${c === sel ? 'checked' : ''}><label for="sw${i}" style="--sw:${c}"></label>`).join('')}
+    <input type="radio" name="color" id="swc" value="${custom ? sel : '#888888'}" ${custom ? 'checked' : ''}>
+    <label for="swc" class="custom" title="自定义颜色" style="--sw:${custom ? sel : '#888'}${custom ? `;background:${sel}` : ''}"><input type="color" data-swc value="${custom ? sel : '#888888'}"></label></div>`;
+};
+const foot = (ok, left = '') => `<div class="dlg-foot">${left}<button class="btn gray" value="cancel" formnovalidate>取消</button><button class="btn" value="ok">${ok}</button></div>`;
+
+function newDomain(){
+  const used = DB.domains.map(d => d.color);
+  const color = COLORS.find(c => !used.includes(c)) || COLORS[DB.domains.length % COLORS.length];
+  modal(`<h2>新领域</h2><p class="hint">一个你想长期推进的方向。</p>
+    <div class="field"><label>领域名称</label><input type="text" name="name" required placeholder="例如：论文"></div>
+    <div class="field"><label>颜色</label>${swatches(color)}</div>
+    <div class="divider"></div>
+    <div class="field"><label>领域目标（长期方向，每行一个）</label><textarea name="dgoals" placeholder="例如：找到研究方向并发表一篇论文"></textarea></div>
+    <div class="divider"></div>
+    <div class="field"><label>第一个阶段（可以之后再开）</label><input type="text" name="phase" placeholder="例如：文献调研"></div>
+    <div class="field"><label>开始日期</label><input type="date" name="start" value="${today()}"></div>
+    <div class="field"><label>阶段目标（可选，每行一个）</label><textarea name="goals" placeholder="读完 10 篇相关论文&#10;写出研究问题"></textarea></div>
+    ${foot('创建')}`, fd => {
+      const d = {id:uid(), name:fd.name.trim(), color:fd.color || color, createdAt:today(), goals:goalsFrom(fd.dgoals, fd.start || today())};
+      DB.domains.push(d);
+      if(fd.phase.trim()) DB.phases.push({id:uid(), domainId:d.id, name:fd.phase.trim(), startDate:fd.start || today(), endDate:null, summary:'', goals:goalsFrom(fd.goals, fd.start || today())});
+      save(); location.hash = '#/d/' + d.id;
+    });
+}
+
+function editDomain(did){
+  const d = domain(did);
+  modal(`<h2>编辑领域</h2><p class="hint">&nbsp;</p>
+    <div class="field"><label>领域名称</label><input type="text" name="name" required value="${esc(d.name)}"></div>
+    <div class="field"><label>颜色</label>${swatches(d.color)}</div>
+    ${foot('保存', `<button class="lnk danger left" value="delete" formnovalidate>删除领域</button>`)}`, (fd, act) => {
+      if(act === 'delete'){
+        const n = phasesOf(did).reduce((s, p) => s + entriesOf(p.id).length, 0);
+        if(!confirm(`确定删除“${d.name}”？它的 ${phasesOf(did).length} 个阶段和 ${n} 条记录都会删除（每日备份在 backups 文件夹里）。`)) return false;
+        const pids = phasesOf(did).map(p => p.id);
+        DB.entries = DB.entries.filter(e => !pids.includes(e.phaseId));
+        DB.phases = DB.phases.filter(p => p.domainId !== did);
+        DB.domains = DB.domains.filter(x => x.id !== did);
+        save(); dlg.close(); location.hash = '#/'; return false;
+      }
+      d.name = fd.name.trim(); d.color = fd.color || d.color; save();
+    });
+}
+
+function startPhase(did){
+  const ps = phasesOf(did), last = ps[ps.length-1];
+  const min = last ? last.endDate : '';
+  modal(`<h2>开启新阶段</h2><p class="hint">${esc(domain(did).name)}</p>
+    <div class="field"><label>阶段名称</label><input type="text" name="name" required></div>
+    <div class="field"><label>开始日期</label><input type="date" name="start" value="${today()}" ${min ? `min="${min}"` : ''}></div>
+    <div class="field"><label>阶段目标（可选，每行一个）</label><textarea name="goals"></textarea></div>
+    ${foot('开始')}`, fd => {
+      DB.phases.push({id:uid(), domainId:did, name:fd.name.trim(), startDate:fd.start || today(), endDate:null, summary:'', goals:goalsFrom(fd.goals, fd.start || today())});
+      save();
+    });
+}
+
+function endPhase(pid){
+  const p = phase(pid), open = p.goals.filter(g => !g.done);
+  modal(`<h2>结束“${esc(p.name)}”</h2><p class="hint">已进行 ${dayNo(p, today())} 天。结束后可以直接开启下一阶段。</p>
+    <div class="field"><label>结束日期</label><input type="date" name="end" value="${today()}" min="${p.startDate}" max="${today()}"></div>
+    <div class="field"><label>阶段总结（可选）</label><textarea name="summary" placeholder="这个阶段完成了什么、学到了什么"></textarea></div>
+    <div class="divider"></div>
+    <div class="field"><label>下一阶段名称（留空则只结束，不开新阶段）</label><input type="text" name="next"></div>
+    <div class="field"><label>下一阶段的阶段目标（可选，每行一个）</label><textarea name="goals"></textarea></div>
+    ${open.length ? `<label class="check"><input type="checkbox" name="carry" checked> 把 ${open.length} 个未完成的阶段目标带到下一阶段</label>` : ''}
+    ${foot('结束阶段')}`, fd => {
+      const end = fd.end || today();
+      p.endDate = end; p.summary = fd.summary.trim();
+      if(fd.next.trim()){
+        const goals = (fd.carry ? open.map(g => ({id:uid(), text:g.text, done:false, createdAt:end})) : []).concat(goalsFrom(fd.goals, end));
+        DB.phases.push({id:uid(), domainId:p.domainId, name:fd.next.trim(), startDate:end, endDate:null, summary:'', goals});
+      }
+      save();
+    });
+}
+
+function editPhase(pid){
+  const p = phase(pid);
+  modal(`<h2>编辑阶段</h2><p class="hint">${esc(domain(p.domainId).name)}</p>
+    <div class="field"><label>阶段名称</label><input type="text" name="name" required value="${esc(p.name)}"></div>
+    <div class="field"><label>开始日期</label><input type="date" name="start" value="${p.startDate}" max="${today()}"></div>
+    ${p.endDate ? `<div class="field"><label>结束日期</label><input type="date" name="end" value="${p.endDate}" max="${today()}"></div>
+      <div class="field"><label>阶段总结</label><textarea name="summary">${esc(p.summary)}</textarea></div>` : ''}
+    ${foot('保存', `<button class="lnk danger left" value="delete" formnovalidate>删除阶段</button>`)}`, (fd, act) => {
+      if(act === 'delete'){
+        if(!confirm(`确定删除阶段“${p.name}”和它的 ${entriesOf(pid).length} 条记录？`)) return false;
+        DB.entries = DB.entries.filter(e => e.phaseId !== pid);
+        DB.phases = DB.phases.filter(x => x.id !== pid);
+        save(); dlg.close(); route(); return false;
+      }
+      const start = fd.start || p.startDate, end = p.endDate ? (fd.end || p.endDate) : null;
+      if(end && end < start){ alert('结束日期不能早于开始日期。'); return false; }
+      const outside = entriesOf(pid).filter(e => e.date < start || (end && e.date > end)).length;
+      if(outside && !confirm(`有 ${outside} 条记录落在新的日期范围外，它们仍会保留在这个阶段里。继续？`)) return false;
+      p.name = fd.name.trim(); p.startDate = start; if(end) p.endDate = end;
+      if('summary' in fd) p.summary = fd.summary.trim();
+      save();
+    });
+}
+
+/* ---------- 事件 ---------- */
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]');
+  if(!el) return;
+  const {act, pid, gid, did, date, key} = el.dataset;
+  switch(act){
+    case 'new-domain': return newDomain();
+    case 'edit-domain': return editDomain(did);
+    case 'start-phase': return startPhase(did);
+    case 'end-phase': return endPhase(pid);
+    case 'edit-phase': return editPhase(pid);
+    case 'goal-toggle': { const g = owner(key).goals.find(x => x.id === gid); g.done = el.checked; g.doneAt = el.checked ? today() : null; save(); return route(); }
+    case 'goal-del': {
+      const o = owner(key), i = o.goals.findIndex(x => x.id === gid);
+      if(i < 0) return;
+      const [g] = o.goals.splice(i, 1); save(); route();
+      toast(`已删除目标“${g.text}”`, () => o.goals.splice(Math.min(i, o.goals.length), 0, g));
+      return;
+    }
+    case 'entry-del': {
+      const e = entryOf(pid, date);
+      if(!e) return;
+      DB.entries = DB.entries.filter(x => x !== e); save(); route();
+      toast(`已删除${fmt(date)}的记录`, () => DB.entries.push(e));
+      return;
+    }
+    case 'todo-cal': {
+      const di = $('#todo-date');
+      di.value = ui.todoManual || today();
+      return openPicker(di);
+    }
+    case 'todo-chip-x': {
+      if(ui.todoManual) ui.todoManual = null; else ui.todoIgnore = true;
+      updateTodoChip();
+      const inp = document.querySelector('[data-todo-input]'); if(inp) inp.focus();
+      return;
+    }
+    case 'todo-toggle': {
+      const td = todoOf(el.dataset.tid);
+      td.done = el.checked; td.doneAt = el.checked ? today() : null;
+      save();
+      if(el.checked){ el.closest('.todo-item').classList.add('leaving'); setTimeout(refreshTodo, 380); }
+      else refreshTodo();
+      return;
+    }
+    case 'todo-del': {
+      const i = DB.todos.findIndex(x => x.id === el.dataset.tid);
+      if(i < 0) return;
+      const [td] = DB.todos.splice(i, 1);
+      save(); refreshTodo();
+      toast(`已删除待办“${td.text}”`, () => DB.todos.splice(Math.min(i, DB.todos.length), 0, td));
+      return;
+    }
+    case 'todo-due': {
+      ui.todoEditDue = ui.todoEditDue === el.dataset.tid ? null : el.dataset.tid;
+      refreshTodo();
+      const di = document.querySelector('[data-todo-due-input]');
+      if(di){ di.focus(); openPicker(di); }
+      return;
+    }
+    case 'todo-due-clear': {
+      todoOf(el.dataset.tid).due = null; ui.todoEditDue = null;
+      save(); return refreshTodo();
+    }
+    case 'toggle-todo-done': ui.showTodoDone = !ui.showTodoDone; return refreshTodo();
+    case 'undo': {
+      if(toastUndo){ toastUndo(); toastUndo = null; save(); route(); }
+      $('#toast').classList.remove('show');
+      return;
+    }
+    case 'toggle-done': ui.showDone[key] = !ui.showDone[key]; return route();
+    case 'reflect-new': {
+      const cur = DB.reflections.slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)[0];
+      if(cur && !cur.text.trim()){ document.querySelector('[data-reflect]').focus(); return; }
+      DB.reflections.push({id:uid(), date:today(), text:'', createdAt:Date.now(), updatedAt:0}); save(); route();
+      document.querySelector('[data-reflect]').focus(); return;
+    }
+    case 'reflect-toggle': ui.showPast = !ui.showPast; return route();
+    case 'reflect-del': {
+      if(!confirm('删除这段过去的感悟？')) return;
+      DB.reflections = DB.reflections.filter(r => r.id !== el.dataset.rid); save(); return route();
+    }
+    case 'toggle-phase': ui.open[pid] = !ui.open[pid]; el.parentElement.classList.toggle('open'); return;
+    case 'entry-edit': ui.editorDate[did] = date; route(); { const t = $('#ed-text'); t.scrollIntoView({behavior:'smooth', block:'center'}); t.focus({preventScroll:true}); } return;
+    case 'cal-day': ui.calDay = date; return route();
+    case 'cal-close': ui.calDay = null; return route();
+    case 'cal-prev': case 'cal-next': {
+      const [y, m] = ui.calMonth.split('-').map(Number);
+      const d = new Date(y, m - 1 + (act === 'cal-next' ? 1 : -1), 1);
+      ui.calMonth = ymd(d).slice(0, 7); return route();
+    }
+    case 'cal-today': ui.calMonth = today().slice(0, 7); return route();
+  }
+});
+
+const listTimers = {};
+document.addEventListener('input', ev => {
+  const el = ev.target;
+  if(el.matches('input[data-swc]')){ const r = $('#swc'); r.value = el.value; r.checked = true; el.parentElement.style.background = el.value; return; }
+  if(el.matches('[data-todo-input]')){
+    if(!el.value.trim()){ ui.todoIgnore = false; ui.todoManual = null; }
+    updateTodoChip();
+    return;
+  }
+  if(el.matches('textarea[data-reflect]')){
+    const r = DB.reflections.find(x => x.id === el.dataset.reflect);
+    r.text = el.value; r.updatedAt = Date.now(); save(); return;
+  }
+  if(el.matches('textarea[data-entry]')){
+    setEntry(el.dataset.pid, el.dataset.date, el.value);
+    // 只刷新下面的记录列表，不打断输入
+    clearTimeout(listTimers.l);
+    listTimers.l = setTimeout(() => { const l = $('#entry-list'); if(l) l.innerHTML = entryListHTML(phase(el.dataset.pid)); }, 500);
+  }
+});
+document.addEventListener('change', ev => {
+  const el = ev.target;
+  if(el.id === 'ed-date' && el.value){ ui.editorDate[el.dataset.did] = el.value; route(); $('#ed-text').focus(); }
+  if(el.id === 'todo-date'){
+    ui.todoManual = el.value || null; ui.todoIgnore = false;
+    updateTodoChip();
+    const inp = document.querySelector('[data-todo-input]'); if(inp) inp.focus();
+  }
+  if(el.matches('[data-todo-due-input]')){
+    todoOf(el.dataset.tid).due = el.value || null; ui.todoEditDue = null;
+    save(); refreshTodo();
+  }
+  if(el.matches('[data-todo-text]')){
+    const td = todoOf(el.dataset.tid);
+    if(el.value.trim()){ td.text = el.value.trim(); save(); } else el.value = td.text;
+  }
+  if(el.matches('[data-goal-text]')){
+    const g = owner(el.dataset.key).goals.find(x => x.id === el.dataset.gid);
+    if(el.value.trim()){ g.text = el.value.trim(); save(); } else el.value = g.text;
+  }
+});
+document.addEventListener('keydown', ev => {
+  if(ev.key === 'Escape' && ui.calDay && !dlg.open && location.hash.startsWith('#/cal')){ ui.calDay = null; route(); return; }
+  if(ev.target.matches('[data-goal-text], [data-todo-text]') && ev.key === 'Enter'){ ev.preventDefault(); ev.target.blur(); }
+});
+document.addEventListener('submit', ev => {
+  const f = ev.target;
+  if(f.dataset.form === 'todo-add'){
+    ev.preventDefault();
+    const raw = f.t.value.trim();
+    if(!raw) return;
+    const r = draftDue(raw);
+    DB.todos.push({id: uid(), text: r && r.match ? stripDue(raw, r.match) : raw, done: false, doneAt: null,
+                   due: r ? r.date : null, createdAt: Date.now()});
+    ui.todoManual = null; ui.todoIgnore = false;
+    f.t.value = '';
+    save(); refreshTodo();
+    return;
+  }
+  if(f.dataset.form === 'goal-add'){
+    ev.preventDefault();
+    const t = f.t.value.trim();
+    if(!t) return;
+    owner(f.dataset.key).goals.push({id:uid(), text:t, done:false, createdAt:today()});
+    save(); route();
+    const inp = document.querySelector(`form[data-key="${f.dataset.key}"] input[name=t]`);
+    if(inp) inp.focus();
+  }
+});
+
+/* 过了午夜自动刷新“今天” */
+let lastDay = today();
+setInterval(() => { if(today() !== lastDay){ lastDay = today(); if(!document.activeElement || !document.activeElement.matches('textarea,input')) route(); } }, 60000);
+
+/* ---------- 启动 ---------- */
+(async () => {
+  try{
+    const r = await fetch('/api/data', {cache:'no-store'});
+    DB = await r.json();
+    for(const k of ['domains','phases','entries','reflections','todos']) if(!Array.isArray(DB[k])) DB[k] = [];
+    DB.domains.forEach(d => { if(!Array.isArray(d.goals)) d.goals = []; });
+    loaded = true;
+  }catch(e){
+    $('#app').innerHTML = `<div class="empty"><h1>没有连上本地服务。</h1><p>请打开文件夹里的“阶段日志” App，而不是直接打开 index.html。</p></div>`;
+    return;
+  }
+  route();
+})();
+</script>
+</body>
+</html>
